@@ -56,3 +56,17 @@ class Subtask(Base):
     title: Mapped[str] = mapped_column(Text)
     done: Mapped[bool] = mapped_column(default=False)
 	
+# --- Analytics model (append at end) ---
+import datetime as dt
+from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import Integer, String, DateTime, ForeignKey
+
+class UserEvent(Base):
+    __tablename__ = "user_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True, nullable=False)
+    ts: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow, index=True)
+    type: Mapped[str] = mapped_column(String(20), default="msg")      # "cmd" или "msg"
+    payload: Mapped[str] = mapped_column(String(255), default="")     # текст команды/сообщения (усечённый)
+

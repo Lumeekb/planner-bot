@@ -1,0 +1,6 @@
+
+# Secrets & artifacts
+.env
+planner.db
+__pycache__/
+*.pyc

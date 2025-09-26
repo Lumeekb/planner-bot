@@ -15,6 +15,7 @@ from .handlers import (
     subtasks,
     commands_ref,
     guide,
+    analytics,  # импортируем
 )
 from .db import init_db
 from .scheduler import startup_scheduler
@@ -34,6 +35,7 @@ def setup():
     dp.include_router(subtasks.router)
     dp.include_router(commands_ref.router)
     dp.include_router(guide.router)
+    dp.include_router(analytics.router)  # ← САМЫЙ ПОСЛЕДНИЙ
 
 async def main():
     await init_db()
