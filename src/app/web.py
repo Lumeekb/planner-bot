@@ -46,7 +46,12 @@ async def on_shutdown():
         with contextlib.suppress(asyncio.CancelledError):
             await task
 
-@app.get("/")
-async def health():
-    return {"ok": True}
+from fastapi.responses import PlainTextResponse
 
+@app.api_route("/", methods=["GET", "HEAD"])
+async def health_root():
+    return PlainTextResponse("ok")
+
+@app.api_route("/healthz", methods=["GET", "HEAD"])
+async def healthz():
+    return PlainTextResponse("ok")
