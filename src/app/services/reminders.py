@@ -2,8 +2,11 @@ from ..bot import bot
 from .weekly import build_weekly_report
 
 async def send_morning_prompt(tg_id: int):
-    text = ("Начни день: открой бумажный планер, выбери 3 MIT (Кофейня, Lumé, Личное), "
-            "запиши следующий физический шаг для MIT #1, заблокируй время на сегодня и убери телефон для первого фокус-спринта.")
+    text = (""Старт дня:\n"
+        "• Выбери 1–3 MIT (главные задачи на сегодня).\n"
+        "• Для MIT #1 запиши следующий физический шаг.\n"
+        "• Заблокируй время в календаре/планере на сегодня.\n"
+        "• Убери телефон на первый фокус-спринт (25 мин)."")
     await bot.send_message(tg_id, text)
 
 async def send_evening_prompt(tg_id: int):
