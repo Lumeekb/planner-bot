@@ -5,7 +5,7 @@ from aiogram.filters import Command
 from sqlalchemy import select
 
 from ..db import AsyncSessionLocal
-from ..models import MIT  # используем, чтобы подтянуть названия MIT
+from ..models import MIT
 from ..services.users import get_or_create_user
 from ..services.subtasks import (
     add_sub_for_today_index,
@@ -21,7 +21,7 @@ def _usage_sub() -> str:
     return (
         "Добавить подзадачу:\n"
         "<code>/sub &lt;MIT#&gt; &lt;текст&gt;</code>\n"
-        "Напр.: <code>/sub 1 Напечатать чек-лист осмотра</code>"
+        "Напр.: <code>/sub 1 Напечатать чек-лист</code>"
     )
 
 
@@ -43,9 +43,7 @@ def _usage_del() -> str:
 
 @router.message(Command("sub"))
 async def sub_add(m: types.Message):
-    """
-    /sub <MIT#> <текст>
-    """
+    """ /sub <MIT#> <текст> """
     text = (m.text or "").strip()
     parts = text.split(maxsplit=2)  # ['/sub', '1', 'текст...']
     if len(parts) < 3:
@@ -68,31 +66,32 @@ async def sub_add(m: types.Message):
 
 @router.message(Command("subs"))
 async def subs_list(m: types.Message):
-    """
-    Показать подзадачи по MIT за сегодня с НАЗВАНИЕМ родительской задачи.
-    """
+    """ Показать подзадачи на сегодня с НАЗВАНИЯМИ родительских MIT. """
+    # метка, чтобы убедиться, что срабатывает НОВЫЙ обработчик (можно удалить позже)
+    await m.answer("🆕 SUBS v2")
+
     user = await get_or_create_user(m.from_user.id)
     today = dt.date.today()
 
-    # 1) Подтягиваем названия MIT на сегодня
+    # 1) Названия MIT на сегодня
     async with AsyncSessionLocal() as s:
-        mits = (
-            await s.execute(
-                select(MIT)
-                .where(MIT.user_id == user.id, MIT.for_date == today)
-                .order_by(MIT.index)
-            )
-        ).scalars().all()
+        result = await s.execute(
+            select(MIT)
+            .where(MIT.user_id == user.id, MIT.for_date == today)
+            .order_by(MIT.index)
+        )
+        mits = result.scalars().all()
+
     mit_titles = {mi.index: (mi.title or f"MIT #{mi.index}") for mi in mits}
 
     if not mit_titles:
         await m.answer("На сегодня MIT ещё не созданы. Добавь их командой:\n/mit Задача1 | Задача2 | Задача3")
         return
 
-    # 2) Подтягиваем подзадачи (dict: mit_index -> list[Subtask])
-    data = await list_subs_for_today(m.from_user.id)
+    # 2) Подзадачи dict: {1: [Sub], 2: [...], 3: [...]}
+    data = await list_subs_for_today(m.from_user.id) or {}
 
-    # 3) Формируем понятный вывод
+    # 3) Формируем вывод
     lines: list[str] = []
     for i in (1, 2, 3):
         parent_title = mit_titles.get(i, f"MIT #{i}")
@@ -102,8 +101,14 @@ async def subs_list(m: types.Message):
             lines.append("  — подзадач пока нет")
         else:
             for j, s in enumerate(items, start=1):
-                mark = "✅" if getattr(s, "done", False) else "⬜️"
-                title = getattr(s, "title", "")
+                # поддержим и объекты, и словари
+                done = getattr(s, "done", None)
+                if done is None and isinstance(s, dict):
+                    done = s.get("done", False)
+                title = getattr(s, "title", None)
+                if title is None and isinstance(s, dict):
+                    title = s.get("title", "")
+                mark = "✅" if done else "⬜️"
                 lines.append(f"  {j}. {mark} {title}")
         lines.append("")  # пустая строка между блоками
 
@@ -117,9 +122,7 @@ async def subs_list(m: types.Message):
 
 @router.message(Command("subdone"))
 async def sub_done(m: types.Message):
-    """
-    /subdone <MIT#> <№_подзадачи>
-    """
+    """ /subdone <MIT#> <№_подзадачи> """
     parts = (m.text or "").split()
     if len(parts) != 3:
         await m.answer(_usage_done())
@@ -143,9 +146,7 @@ async def sub_done(m: types.Message):
 
 @router.message(Command("subdel"))
 async def sub_del(m: types.Message):
-    """
-    /subdel <MIT#> <№_подзадачи>
-    """
+    """ /subdel <MIT#> <№_подзадачи> """
     parts = (m.text or "").split()
     if len(parts) != 3:
         await m.answer(_usage_del())
