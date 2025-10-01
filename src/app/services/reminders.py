@@ -1,20 +1,39 @@
-from ..bot import bot
-from .weekly import build_weekly_report
+# src/app/services/reminders.py
+from ..bot import bot  # используем общий экземпляр бота
 
-async def send_morning_prompt(tg_id: int):
-    text = (""Старт дня:\n"
+def build_morning_text() -> str:
+    return (
+        "Старт дня:\n"
         "• Выбери 1–3 MIT (главные задачи на сегодня).\n"
         "• Для MIT #1 запиши следующий физический шаг.\n"
         "• Заблокируй время в календаре/планере на сегодня.\n"
-        "• Убери телефон на первый фокус-спринт (25 мин)."")
-    await bot.send_message(tg_id, text)
+        "• Убери телефон на первый фокус-спринт (25 мин)."
+    )
 
-async def send_evening_prompt(tg_id: int):
-    text = ("Закрой день: 3 победы → что мешало → чему научился; Done; 1–3 MIT на завтра.")
-    await bot.send_message(tg_id, text)
+async def send_morning_prompt(chat_id: int):
+    await bot.send_message(chat_id, build_morning_text())
 
-async def send_weekly_prompt(tg_id: int):
-    header = "🧭 Время еженедельного обзора! Отчёт за 7 дней ниже:"
-    report = await build_weekly_report(tg_id)
-    await bot.send_message(tg_id, f"{header}\n\n{report}")
+def build_evening_text() -> str:
+    return (
+        "Закрытие дня:\n"
+        "• Запиши 3 победы.\n"
+        "• Что мешало сегодня?\n"
+        "• Чему научился(ась).\n"
+        "• Отметь день как Done.\n"
+        "• Поставь 1–3 MIT на завтра."
+    )
+
+async def send_evening_prompt(chat_id: int):
+    await bot.send_message(chat_id, build_evening_text())
+
+def build_weekly_text() -> str:
+    return (
+        "Еженедельная проверка:\n"
+        "• Обнови CAPEX/OPEX и статус целей.\n"
+        "• Отметь прогресс по недельной вехе.\n"
+        "• Сформируй следующие шаги на следующую неделю."
+    )
+
+async def send_weekly_prompt(chat_id: int):
+    await bot.send_message(chat_id, build_weekly_text())
 
