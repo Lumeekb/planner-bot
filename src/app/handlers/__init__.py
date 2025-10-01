@@ -13,8 +13,8 @@ from . import (
     subtasks,
     commands_ref,
     guide,
-    analytics,  # ← ОБЯЗАТЕЛЬНО есть в списк
-    version,
+    version,    # ← ДОЛЖЕН БЫТЬ
+    analytics,
 )
 
 __all__ = [
@@ -32,6 +32,7 @@ __all__ = [
     "subtasks",
     "commands_ref",
     "guide",
-    "analytics",  # ← и тут тож
-    "version",
+    "version",    # ← ДОЛЖЕН БЫТЬ
+    "analytics",
 ]
+
