@@ -36,7 +36,7 @@ def setup():
     dp.include_router(commands_ref.router)
     dp.include_router(guide.router)
     dp.include_router(analytics.router)  # ← САМЫЙ ПОСЛЕДНИЙ
-
+    dp.include_router(version.router) 
 async def main():
     await init_db()
     setup()

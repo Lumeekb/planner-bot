@@ -29,6 +29,7 @@ def setup():
     dp.include_router(commands_ref.router)
     dp.include_router(guide.router)
     dp.include_router(analytics.router)  # ← САМЫЙ ПОСЛЕДНИЙ
+    dp.include_router(version.router)
 
 @app.on_event("startup")
 async def on_startup():
