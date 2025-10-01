@@ -1,5 +1,12 @@
+# src/app/run_polling.py
+import os
 import asyncio
+
 from .bot import bot, dp
+from .db import init_db
+from .scheduler import startup_scheduler
+
+# Импортируем роутеры (ВАЖНО: version должен быть тут)
 from .handlers import (
     start,
     settings_handler,
@@ -15,10 +22,9 @@ from .handlers import (
     subtasks,
     commands_ref,
     guide,
-    analytics,  # импортируем
+    version,     # ← добавлен
+    analytics,   # analytics подключаем последним
 )
-from .db import init_db
-from .scheduler import startup_scheduler
 
 def setup():
     dp.include_router(start.router)
@@ -35,13 +41,18 @@ def setup():
     dp.include_router(subtasks.router)
     dp.include_router(commands_ref.router)
     dp.include_router(guide.router)
-    dp.include_router(analytics.router)  # ← САМЫЙ ПОСЛЕДНИЙ
-    dp.include_router(version.router) 
+    dp.include_router(version.router)     # ← теперь определён
+    dp.include_router(analytics.router)   # ← последним
+
 async def main():
     await init_db()
     setup()
+
+    if os.getenv("DISABLE_BOT") == "1":
+        print("[bot] Disabled via DISABLE_BOT=1 (polling & scheduler are off)")
+        return
+
     await startup_scheduler()
-    print("Bot polling started. Press Ctrl+C to stop.")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
