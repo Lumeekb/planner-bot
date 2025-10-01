@@ -1,5 +1,6 @@
 # src/app/handlers/subtasks.py
 import datetime as dt
+import logging
 from aiogram import Router, types
 from aiogram.filters import Command
 from sqlalchemy import select
@@ -15,30 +16,44 @@ from ..services.subtasks import (
 )
 
 router = Router()
+log = logging.getLogger(__name__)
 
 
 def _usage_sub() -> str:
     return (
         "Добавить подзадачу:\n"
-        "<code>/sub &lt;MIT#&gt; &lt;текст&gt;</code>\n"
-        "Напр.: <code>/sub 1 Напечатать чек-лист</code>"
+        "/sub <MIT#> <текст>\n"
+        "Напр.: /sub 1 Напечатать чек-лист"
     )
-
 
 def _usage_done() -> str:
     return (
         "Отметить подзадачу выполненной:\n"
-        "<code>/subdone &lt;MIT#&gt; &lt;№_подзадачи&gt;</code>\n"
-        "Напр.: <code>/subdone 1 2</code>"
+        "/subdone <MIT#> <№_подзадачи>\n"
+        "Напр.: /subdone 1 2"
     )
-
 
 def _usage_del() -> str:
     return (
         "Удалить подзадачу:\n"
-        "<code>/subdel &lt;MIT#&gt; &lt;№_подзадачи&gt;</code>\n"
-        "Напр.: <code>/subdel 2 1</code>"
+        "/subdel <MIT#> <№_подзадачи>\n"
+        "Напр.: /subdel 2 1"
     )
+
+def _mi_index(mi) -> int | None:
+    """
+    Универсально достаём номер MIT из объекта модели, не зная точного имени поля.
+    Пробуем популярные варианты; если не нашли — None.
+    """
+    for name in ("index", "idx", "position", "order", "slot", "num", "i"):
+        if hasattr(mi, name):
+            try:
+                val = getattr(mi, name)
+                if val is not None:
+                    return int(val)
+            except Exception:
+                continue
+    return None
 
 
 @router.message(Command("sub"))
@@ -67,57 +82,64 @@ async def sub_add(m: types.Message):
 @router.message(Command("subs"))
 async def subs_list(m: types.Message):
     """ Показать подзадачи на сегодня с НАЗВАНИЯМИ родительских MIT. """
-    # метка, чтобы убедиться, что срабатывает НОВЫЙ обработчик (можно удалить позже)
+    # Маркер, чтобы точно видеть, что сработал новый хэндлер
     await m.answer("🆕 SUBS v2")
 
-    user = await get_or_create_user(m.from_user.id)
-    today = dt.date.today()
+    try:
+        user = await get_or_create_user(m.from_user.id)
+        today = dt.date.today()
 
-    # 1) Названия MIT на сегодня
-    async with AsyncSessionLocal() as s:
-        result = await s.execute(
-            select(MIT)
-            .where(MIT.user_id == user.id, MIT.for_date == today)
-            .order_by(MIT.index)
-        )
-        mits = result.scalars().all()
+        # 1) Берём MIT за сегодня (без order_by по несуществующей колонке)
+        async with AsyncSessionLocal() as s:
+            result = await s.execute(
+                select(MIT).where(MIT.user_id == user.id, MIT.for_date == today)
+            )
+            mits = result.scalars().all()
 
-    mit_titles = {mi.index: (mi.title or f"MIT #{mi.index}") for mi in mits}
+        # 2) Универсально достанем номера 1..3 и названия
+        mit_titles: dict[int, str] = {}
+        for mi in mits:
+            idx = _mi_index(mi)
+            if idx in (1, 2, 3):
+                mit_titles[idx] = (getattr(mi, "title", None) or f"MIT #{idx}")
 
-    if not mit_titles:
-        await m.answer("На сегодня MIT ещё не созданы. Добавь их командой:\n/mit Задача1 | Задача2 | Задача3")
-        return
+        if not mit_titles:
+            await m.answer("На сегодня MIT ещё не созданы. Добавь их командой:\n/mit Задача1 | Задача2 | Задача3")
+            return
 
-    # 2) Подзадачи dict: {1: [Sub], 2: [...], 3: [...]}
-    data = await list_subs_for_today(m.from_user.id) or {}
+        # 3) Подзадачи dict: {1: [Sub], 2: [...], 3: [...]}
+        data = await list_subs_for_today(m.from_user.id) or {}
 
-    # 3) Формируем вывод
-    lines: list[str] = []
-    for i in (1, 2, 3):
-        parent_title = mit_titles.get(i, f"MIT #{i}")
-        lines.append(f"<b>MIT #{i} — {parent_title}</b>")
-        items = data.get(i, [])
-        if not items:
-            lines.append("  — подзадач пока нет")
-        else:
-            for j, s in enumerate(items, start=1):
-                # поддержим и объекты, и словари
-                done = getattr(s, "done", None)
-                if done is None and isinstance(s, dict):
-                    done = s.get("done", False)
-                title = getattr(s, "title", None)
-                if title is None and isinstance(s, dict):
-                    title = s.get("title", "")
-                mark = "✅" if done else "⬜️"
-                lines.append(f"  {j}. {mark} {title}")
-        lines.append("")  # пустая строка между блоками
+        # 4) Формируем вывод в порядке 1→2→3
+        lines: list[str] = []
+        for i in (1, 2, 3):
+            parent_title = mit_titles.get(i, f"MIT #{i}")
+            lines.append(f"MIT #{i} — {parent_title}")
+            items = data.get(i, [])
+            if not items:
+                lines.append("  — подзадач пока нет")
+            else:
+                for j, s in enumerate(items, start=1):
+                    # поддержим и объекты, и словари
+                    if isinstance(s, dict):
+                        done = s.get("done", False)
+                        title = s.get("title", "")
+                    else:
+                        done = getattr(s, "done", False)
+                        title = getattr(s, "title", "")
+                    mark = "✅" if done else "⬜️"
+                    lines.append(f"  {j}. {mark} {title}")
+            lines.append("")  # пустая строка между блоками
 
-    # Подсказки
-    lines.append(_usage_sub())
-    lines.append(_usage_done())
-    lines.append(_usage_del())
+        # Подсказки
+        lines.append(_usage_sub())
+        lines.append(_usage_done())
+        lines.append(_usage_del())
 
-    await m.answer("\n".join(lines))
+        await m.answer("\n".join(lines))
+    except Exception as e:
+        log.exception("subs_list failed")
+        await m.answer(f"⚠️ subs error: {type(e).__name__}: {e}")
 
 
 @router.message(Command("subdone"))
