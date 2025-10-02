@@ -18,28 +18,30 @@ from ..services.subtasks import (
 router = Router()
 log = logging.getLogger(__name__)
 
+def _esc(s: str | None) -> str:
+    s = s or ""
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 def _usage_sub() -> str:
     return (
         "Добавить подзадачу:\n"
-        "/sub <MIT#> <текст>\n"
-        "Напр.: /sub 1 Напечатать чек-лист"
+        "<code>/sub &lt;MIT#&gt; &lt;текст&gt;</code>\n"
+        "Напр.: <code>/sub 1 Напечатать чек-лист</code>"
     )
 
 def _usage_done() -> str:
     return (
         "Отметить подзадачу выполненной:\n"
-        "/subdone <MIT#> <№_подзадачи>\n"
-        "Напр.: /subdone 1 2"
+        "<code>/subdone &lt;MIT#&gt; &lt;№_подзадачи&gt;</code>\n"
+        "Напр.: <code>/subdone 1 2</code>"
     )
 
 def _usage_del() -> str:
     return (
         "Удалить подзадачу:\n"
-        "/subdel <MIT#> <№_подзадачи>\n"
-        "Напр.: /subdel 2 1"
+        "<code>/subdel &lt;MIT#&gt; &lt;№_подзадачи&gt;</code>\n"
+        "Напр.: <code>/subdel 2 1</code>"
     )
-
 
 @router.message(Command("sub"))
 async def sub_add(m: types.Message):
@@ -62,7 +64,6 @@ async def sub_add(m: types.Message):
 
     ok = await add_sub_for_today_index(m.from_user.id, int(mit_token), title)
     await m.answer("✅ Подзадача добавлена." if ok else "⚠️ Не удалось. Проверь, что MIT на сегодня созданы: /mit")
-
 
 @router.message(Command("subs"))
 async def subs_list(m: types.Message):
@@ -98,16 +99,16 @@ async def subs_list(m: types.Message):
         mit_titles: dict[int, str] = {}
         for i, mi in enumerate(mits_all[:3], start=1):
             title = getattr(mi, "title", None) or f"MIT #{i}"
-            mit_titles[i] = title
+            mit_titles[i] = _esc(title)
 
         # 3) Подзадачи dict: {1: [Sub], 2: [...], 3: [...]}
         data = await list_subs_for_today(m.from_user.id) or {}
 
-        # 4) Формируем вывод 1→2→3
+        # 4) Формируем вывод 1→2→3 (экранируем пользовательский текст!)
         lines: list[str] = []
         for i in (1, 2, 3):
             parent_title = mit_titles.get(i, f"MIT #{i}")
-            lines.append(f"MIT #{i} — {parent_title}")
+            lines.append(f"<b>MIT #{i} — {_esc(parent_title)}</b>")
             items = data.get(i, [])
             if not items:
                 lines.append("  — подзадач пока нет")
@@ -115,10 +116,10 @@ async def subs_list(m: types.Message):
                 for j, s in enumerate(items, start=1):
                     if isinstance(s, dict):
                         done = s.get("done", False)
-                        title = s.get("title", "")
+                        title = _esc(s.get("title", ""))
                     else:
                         done = getattr(s, "done", False)
-                        title = getattr(s, "title", "")
+                        title = _esc(getattr(s, "title", ""))
                     mark = "✅" if done else "⬜️"
                     lines.append(f"  {j}. {mark} {title}")
             lines.append("")
@@ -129,11 +130,9 @@ async def subs_list(m: types.Message):
         lines.append(_usage_del())
 
         await m.answer("\n".join(lines))
-
     except Exception as e:
         log.exception("subs_list failed")
         await m.answer(f"⚠️ subs error: {type(e).__name__}: {e}")
-
 
 @router.message(Command("subdone"))
 async def sub_done(m: types.Message):
@@ -157,7 +156,6 @@ async def sub_done(m: types.Message):
 
     ok = await toggle_sub_done(m.from_user.id, mit_idx, sub_idx)
     await m.answer("✅ Готово." if ok else "⚠️ Не найдено. Проверь номера: /subs")
-
 
 @router.message(Command("subdel"))
 async def sub_del(m: types.Message):
