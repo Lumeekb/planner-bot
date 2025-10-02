@@ -72,8 +72,6 @@ async def subs_list(m: types.Message):
     Нумерацию 1–3 определяем по порядку создания (id по возрастанию),
     чтобы не зависеть от отсутствующего поля MIT.index.
     """
-    await m.answer("🆕 SUBS v4")
-
     try:
         user = await get_or_create_user(m.from_user.id)
         today = dt.date.today()
@@ -124,12 +122,8 @@ async def subs_list(m: types.Message):
                     lines.append(f"  {j}. {mark} {title}")
             lines.append("")
 
-        # Подсказки
-        lines.append(_usage_sub())
-        lines.append(_usage_done())
-        lines.append(_usage_del())
-
         await m.answer("\n".join(lines))
+
     except Exception as e:
         log.exception("subs_list failed")
         await m.answer(f"⚠️ subs error: {type(e).__name__}: {e}")
