@@ -23,6 +23,8 @@ from .handlers import (
     commands_ref,
     guide,
     version,     # ← добавлен
+    quick_mitt,
+    mitt_cmd,
     analytics,   # analytics подключаем последним
 )
 
@@ -42,6 +44,8 @@ def setup():
     dp.include_router(commands_ref.router)
     dp.include_router(guide.router)
     dp.include_router(version.router)     # ← теперь определён
+    dp.include_router(quick_mitt.router)
+    dp.include_router(mitt_cmd.router)
     dp.include_router(analytics.router)   # ← последним
 
 async def main():

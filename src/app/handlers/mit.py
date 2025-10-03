@@ -1,38 +1,74 @@
+# src/app/handlers/mit.py
+import datetime as dt
 from aiogram import Router, types
 from aiogram.filters import Command
-from ..services.mits import (
-    set_mits_for_today,
-    list_mits_today,
-    delete_mit_today_by_index,
-    clear_mits_today,
-)
+from sqlalchemy import select, delete
+
+from ..db import AsyncSessionLocal
+from ..models import MIT
+from ..services.users import get_or_create_user
 
 router = Router()
 
+def _esc(s: str | None) -> str:
+    s = s or ""
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+def _parse_titles(payload: str) -> list[str]:
+    return [t.strip() for t in payload.split("|") if t.strip()][:3]
+
 @router.message(Command("mit"))
-async def mit_cmd(m: types.Message):
-    # формат: /mit задача1 | задача2 | задача3
-    payload = m.text.replace("/mit", "", 1).strip()
-    parts = [p.strip(" |") for p in payload.split("|")] if payload else []
-    while len(parts) < 3:
-        parts.append("")
-    m1, m2, m3 = parts[:3]
-    await set_mits_for_today(m.from_user.id, m1, m2, m3)
-    rows = await list_mits_today(m.from_user.id)
-    text = "MIT на сегодня:\n" + "\n".join([f"{i+1}) {r.title or '—'}" for i, r in enumerate(rows)])
-    await m.answer(text)
+async def mit_today(m: types.Message):
+    """
+    /mit A | B | C     → сохранить 1–3 MIT на СЕГОДНЯ
+    """
+    text = (m.text or "")
+    payload = text.replace("/mit", "", 1).strip()
 
-@router.message(Command("delmit"))
-async def del_mit(m: types.Message):
-    parts = m.text.split()
-    if len(parts) != 2 or parts[1] not in ("1","2","3"):
-        await m.answer("Используй: /delmit <1|2|3>, напр. /delmit 2")
+    if not payload:
+        await m.answer(
+            "Поставь MIT на сегодня:\n"
+            "<code>/mit Задача1 | Задача2 | Задача3</code>",
+            parse_mode="HTML",
+        )
         return
-    ok = await delete_mit_today_by_index(m.from_user.id, int(parts[1]))
-    await m.answer("Удалено." if ok else "Не найдено. Проверь: /status")
 
-@router.message(Command("clearmit"))
-async def clear_mit(m: types.Message):
-    n = await clear_mits_today(m.from_user.id)
-    await m.answer(f"Удалено задач на сегодня: {n}")
+    titles = _parse_titles(payload)
+    if not titles:
+        await m.answer(
+            "Нужно хотя бы одно название. Пример:\n"
+            "<code>/mit A | B | C</code>",
+            parse_mode="HTML",
+        )
+        return
+
+    user = await get_or_create_user(m.from_user.id)
+    target = dt.date.today()
+
+    async with AsyncSessionLocal() as s:
+        # чистим ТОЛЬКО дневные MIT за сегодня
+        await s.execute(
+            delete(MIT).where(
+                MIT.user_id == user.id,
+                MIT.for_date == target,
+                MIT.cat == "day",
+            )
+        )
+        # записываем новые, ОБЯЗАТЕЛЬНО cat="day"
+        s.add_all([MIT(user_id=user.id, title=t, for_date=target, cat="day") for t in titles])
+        await s.commit()
+
+        res = await s.execute(
+            select(MIT).where(MIT.user_id == user.id, MIT.for_date == target, MIT.cat == "day")
+        )
+        rows = res.scalars().all()
+        try:
+            rows.sort(key=lambda r: getattr(r, "id"))
+        except Exception:
+            pass
+
+    lines = [f"<b>MIT на сегодня сохранены:</b>"]
+    for i, r in enumerate(rows[:3], start=1):
+        lines.append(f"{i}) {_esc(getattr(r, 'title', ''))}")
+    await m.answer("\n".join(lines), parse_mode="HTML")
 
