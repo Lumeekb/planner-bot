@@ -25,7 +25,6 @@ from .handlers import (
     commands_ref,
     guide,    # если файла нет — удали эту строку
     version,     # ОБЯЗАТЕЛЬНО есть
-    quick_mitt,
     mitt_cmd,
     analytics,   # analytics — последним подключаем в dp (ниже)
 )
@@ -50,7 +49,6 @@ def setup():
     dp.include_router(commands_ref.router)
     dp.include_router(guide.router)   # если нет startday — закомментируй
     dp.include_router(version.router)    # ← теперь version точно импортирован
-    dp.include_router(quick_mitt.router)
     dp.include_router(mitt_cmd.router)
     dp.include_router(analytics.router)  # analytics — САМЫМ ПОСЛЕДНИМ
 

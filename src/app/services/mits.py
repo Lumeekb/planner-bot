@@ -8,6 +8,7 @@ async def set_mits_for_today(tg_id: int, m1: str, m2: str, m3: str):
         u = (await s.execute(select(User).where(User.tg_id == tg_id))).scalar_one()
         today = dt.date.today()
         await s.execute(delete(MIT).where(MIT.user_id == u.id, MIT.for_date == today))
+        cat = cat or "day"
         recs = [MIT(user_id=u.id, for_date=today, cat=cat, title=title or "")
                 for cat, title in zip(["A", "B", "C"], [m1, m2, m3])]
         s.add_all(recs)
